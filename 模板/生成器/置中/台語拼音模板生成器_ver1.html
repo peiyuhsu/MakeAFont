@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>台灣拼音字符網格模板</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        button, input {
+            margin: 10px 0;
+            padding: 8px 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .download-link {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9f7fd;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #0366d6;
+        }
+        .download-link:hover {
+            background: #d1effc;
+        }
+        h3 {
+            margin-top: 30px;
+        }
+        #characterList {
+            font-family: monospace;
+            width: 100%;
+            height: 200px;
+            margin-bottom: 20px;
+        }
+        #preview {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 120px);
+            grid-template-rows: repeat(7, 120px);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .cell {
+            border: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: white;
+        }
+        .cell::before, .cell::after {
+            content: '';
+            position: absolute;
+            background-color: #e0e0e0;
+        }
+        .cell::before {
+            width: 100%;
+            height: 1px;
+            top: 50%;
+        }
+        .cell::after {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+        }
+        .character {
+            font-size: 72px;
+            z-index: 1;
+            padding: 10px;
+            color: #888888;
+            opacity: 0.75;
+        }
+        .character-name {
+            font-size: 10px;
+            text-align: center;
+            margin-top: 5px;
+            font-family: Arial, sans-serif;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>台灣拼音字符網格生成器</h1>
+    
+    <div class="controls">
+        <h3>使用說明</h3>
+        <p>此工具可幫助您生成台灣拼音字符的字符網格模板，用於字體設計或測試。</p>
+        <p>在下方文本框中已預設了168個台灣拼音字符的Unicode碼點，您可以按需修改或替換。</p>
+        
+        <h3>第一步：編輯字符列表</h3>
+        <textarea id="characterList">U+00C0
+U+00C1
+U+00C2
+U+00C8
+U+00C9
+U+00CA
+U+00CC
+U+00CD
+U+00CE
+U+00D2
+U+00D3
+U+00D4
+U+00D9
+U+00DA
+U+00DB
+U+00E0
+U+00E1
+U+00E2
+U+00E8
+U+00E9
+U+00EA
+U+00EC
+U+00ED
+U+00EE
+U+00F2
+U+00F3
+U+00F4
+U+00F9
+U+00FA
+U+00FB
+U+0100
+U+0101
+U+0102
+U+0103
+U+0112
+U+0113
+U+0114
+U+0115
+U+011A
+U+011B
+U+012A
+U+012B
+U+012C
+U+012D
+U+0143
+U+0144
+U+014C
+U+014D
+U+014E
+U+014F
+U+0150
+U+0151
+U+016A
+U+016B
+U+016C
+U+016D
+U+0170
+U+0171
+U+0197
+U+01CD
+U+01CE
+U+01CF
+U+01D0
+U+01D1
+U+01D2
+U+01D3
+U+01D4
+U+01F8
+U+01F9
+U+0244
+U+0268
+U+0289
+U+005E
+U+0300
+U+0302
+U+0304
+U+0306
+U+030B
+U+030C
+U+030D
+U+0358
+U+1E3E
+U+1E3F
+U+1E5E
+U+1E5F
+U+207A
+U+207F
+U+1D3A
+U+1E72
+U+1E73
+U+00DD
+U+1EF2
+U+0176
+U+0232
+U+00FD
+U+1EF3
+U+0177
+U+0233
+U+02BC
+U+2303</textarea>
+        
+        <h3>第二步：設定分頁參數</h3>
+        <div>
+            <label for="charsPerPage">每頁字符數：</label>
+            <input type="number" id="charsPerPage" value="35" min="1" max="100">
+        </div>
+        
+        <h3>第三步：生成預覽</h3>
+        <button id="previewButton">生成預覽</button>
+        <div id="preview"></div>
+        
+        <h3>第四步：下載HTML模板</h3>
+        <button id="generateButton">生成HTML模板</button>
+        <div id="downloadLinks"></div>
+    </div>
+    
+    <script>
+        // 基本配置
+        const config = {
+            charsPerPage: 35, // 每頁顯示的字符數
+            fontFamily: 'Arial, sans-serif' // 字體
+        };
+        
+        // 解析Unicode碼點字符串為實際字符
+        function parseUnicode(unicodeString) {
+            // 處理U+XXXX格式
+            if (unicodeString.startsWith('U+')) {
+                const hex = unicodeString.substring(2);
+                try {
+                    return String.fromCodePoint(parseInt(hex, 16));
+                } catch (e) {
+                    console.error(`無法解析Unicode: ${unicodeString}`, e);
+                    return '?';
+                }
+            } 
+            // 處理像 U+004D+U+0300 這樣的組合Unicode
+            else if (unicodeString.includes('+')) {
+                try {
+                    return unicodeString.split('+')
+                        .map(part => {
+                            if (part.startsWith('U+')) {
+                                const hex = part.substring(2);
+                                return String.fromCodePoint(parseInt(hex, 16));
+                            }
+                            return '';
+                        })
+                        .join('');
+                } catch (e) {
+                    console.error(`無法解析組合Unicode: ${unicodeString}`, e);
+                    return '?';
+                }
+            }
+            // 直接返回輸入
+            return unicodeString;
+        }
+        
+        // 解析字符列表
+        function parseCharacterList(text) {
+            return text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '')
+                .map(line => ({
+                    unicodeName: line,
+                    character: parseUnicode(line)
+                }));
+        }
+        
+        // 生成單個頁面的HTML
+        function generatePageHTML(characters, pageIndex) {
+            const startIdx = pageIndex * config.charsPerPage;
+            const endIdx = Math.min(startIdx + config.charsPerPage, characters.length);
+            const pageChars = characters.slice(startIdx, endIdx);
+            
+            let html = `
+            <div class="page">
+                <div class="page-title">台灣拼音字符網格模板 - 第${pageIndex + 1}頁</div>
+                <div class="grid">
+            `;
+            
+            for (const charObj of pageChars) {
+                html += `
+                    <div class="cell">
+                        <div class="character">${charObj.character}</div>
+                        <div class="character-name">${charObj.unicodeName}</div>
+                    </div>
+                `;
+            }
+            
+            // 如果這一頁不足35個字符，補充空白單元格
+            const emptyCellsNeeded = config.charsPerPage - pageChars.length;
+            for (let i = 0; i < emptyCellsNeeded; i++) {
+                html += `
+                    <div class="cell">
+                        <div class="character"></div>
+                        <div class="character-name"></div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                </div>
+            </div>
+            `;
+            
+            return html;
+        }
+        
+        // 生成所有頁面的HTML
+        function generateAllPagesHTML(characters) {
+            const pagesNeeded = Math.ceil(characters.length / config.charsPerPage);
+            let allHTML = '';
+            
+            for (let pageIndex = 0; pageIndex < pagesNeeded; pageIndex++) {
+                allHTML += generatePageHTML(characters, pageIndex);
+            }
+            
+            return {
+                html: allHTML,
+                pagesCount: pagesNeeded,
+                charactersCount: characters.length
+            };
+        }
+        
+        // 生成完整的HTML文檔
+        function generateCompleteHTML(pageContent) {
+            return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>台灣拼音字符網格模板</title>
+    <style>
+        @page { size: A4; margin: 1cm; }
+        body { font-family: ${config.fontFamily}; margin: 0; padding: 0; }
+        .page { page-break-after: always; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .page-title { margin-bottom: 20px; font-size: 16px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(5, 120px); grid-template-rows: repeat(7, 120px); gap: 10px; }
+        .cell { border: 1px solid #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: white; }
+        .cell::before, .cell::after { content: ''; position: absolute; background-color: #e0e0e0; }
+        .cell::before { width: 100%; height: 1px; top: 50%; }
+        .cell::after { width: 1px; height: 100%; left: 50%; }
+        .character { font-size: 72px; z-index: 1; padding: 10px; color: #888888; opacity: 0.75; }
+        .character-name { font-size: 10px; text-align: center; margin-top: 5px; font-family: Arial, sans-serif; z-index: 1; }
+        @media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    ${pageContent}
+</body>
+</html>`;
+        }
+        
+        // 設置事件監聽器
+        document.addEventListener('DOMContentLoaded', function() {
+            const characterList = document.getElementById('characterList');
+            const charsPerPageInput = document.getElementById('charsPerPage');
+            const previewButton = document.getElementById('previewButton');
+            const generateButton = document.getElementById('generateButton');
+            const preview = document.getElementById('preview');
+            const downloadLinks = document.getElementById('downloadLinks');
+            
+            // 更新設定參數
+            charsPerPageInput.addEventListener('change', function() {
+                config.charsPerPage = parseInt(charsPerPageInput.value) || 35;
+            });
+            
+            // 生成預覽
+            previewButton.addEventListener('click', function() {
+                const characters = parseCharacterList(characterList.value);
+                if (characters.length === 0) {
+                    alert('請輸入有效的字符列表');
+                    return;
+                }
+                
+                const firstPageHTML = generatePageHTML(characters, 0);
+                preview.innerHTML = `<h4>第1頁預覽：</h4>${firstPageHTML}`;
+            });
+            
+            // 生成HTML模板
+            generateButton.addEventListener('click', function() {
+                const characters = parseCharacterList(characterList.value);
+                if (characters.length === 0) {
+                    alert('請輸入有效的字符列表');
+                    return;
+                }
+                
+                const result = generateAllPagesHTML(characters);
+                const completeHTML = generateCompleteHTML(result.html);
+                
+                // 創建下載連結
+                const blob = new Blob([completeHTML], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                
+                downloadLinks.innerHTML = '';
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = '台灣拼音字符網格模板.html';
+                link.textContent = `下載HTML模板 (${result.charactersCount}字符，${result.pagesCount}頁)`;
+                link.className = 'download-link';
+                downloadLinks.appendChild(link);
+                
+                downloadLinks.innerHTML += `
+                <p>下載完成後：</p>
+                <ol>
+                    <li>在瀏覽器中打開HTML文件</li>
+                    <li>按Ctrl+P (Windows) 或 Command+P (Mac) 打開列印面板</li>
+                    <li>選擇「另存為PDF」</li>
+                    <li>儲存PDF文件</li>
+                </ol>
+                `;
+            });
+            
+            // 初始加載時生成預覽
+            previewButton.click();
+        });
+    </script>
+</body>
+</html>

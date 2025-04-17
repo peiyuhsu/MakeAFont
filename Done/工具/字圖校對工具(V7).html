@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>字圖校對工具 V7（無分頁・全欄位）</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 20px;
+    }
+    .cell {
+      text-align: center;
+    }
+    .cell img {
+      width: 100%;
+      border: 1px solid #ddd;
+    }
+    .cell input {
+      margin-top: 5px;
+      width: 90%;
+      text-align: center;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <input type="file" id="imgFolder" webkitdirectory directory />
+    <br /><br />
+    <input type="file" id="charListFile" />
+    <button onclick="fillFromList()">填入全部字元</button>
+    <button onclick="exportJson()">匯出 JSON</button>
+    <div class="status" id="statusMessage"></div>
+  </div>
+
+  <div class="grid" id="previewGrid"></div>
+
+  <script>
+    let images = [];
+
+    document.getElementById("imgFolder").addEventListener("change", function(e) {
+      images = Array.from(e.target.files).filter(file => file.name.endsWith(".png"));
+      images.sort((a, b) => a.name.localeCompare(b.name));
+      renderAll();
+    });
+
+    function renderAll() {
+      const grid = document.getElementById("previewGrid");
+      grid.innerHTML = "";
+
+      images.forEach(file => {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        img.title = file.name;
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 1;
+        input.dataset.index = file.name.replace(".png", "");
+
+        cell.appendChild(img);
+        cell.appendChild(input);
+        grid.appendChild(cell);
+      });
+
+      document.getElementById("statusMessage").textContent = `📦 圖片數量：${images.length}`;
+    }
+
+    function isValidChar(ch) {
+      return typeof ch === "string" && ch.length === 1 && ch.charCodeAt(0) >= 0x2E80;
+    }
+
+    function fillFromList() {
+      const fileInput = document.getElementById("charListFile");
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("請選擇 list_base.txt 檔案！");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split(/\r?\n/).filter(Boolean);
+        const chars = lines.map(code => {
+          if (code.startsWith("uni") && code.length === 8) {
+            try {
+              return String.fromCodePoint(parseInt(code.slice(3), 16));
+            } catch {
+              return "";
+            }
+          }
+          return "";
+        });
+
+        if (chars.length !== images.length) {
+          alert(`⚠️ 字元數 (${chars.length}) 與圖片數 (${images.length}) 不一致，請確認！`);
+          return;
+        }
+
+        const inputs = document.querySelectorAll("input[data-index]");
+        inputs.forEach((input, i) => {
+          const ch = chars[i];
+          input.value = ch && isValidChar(ch) ? ch : "";
+        });
+
+        document.getElementById("statusMessage").textContent = `✅ 已填入 ${chars.length} 個字元`;
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    function exportJson() {
+      const inputs = document.querySelectorAll("input[data-index]");
+      const data = [];
+      const seen = new Set();
+      const duplicates = [];
+
+      inputs.forEach(input => {
+        const char = input.value.trim();
+        const index = input.dataset.index;
+        if (char) {
+          if (seen.has(char)) {
+            duplicates.push(char);
+          } else {
+            seen.add(char);
+          }
+          data.push({ index, char });
+        }
+      });
+
+      if (duplicates.length > 0) {
+        alert("⚠️ 重複字元：\n" + duplicates.join("、"));
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "校對後.json";
+      a.click();
+    }
+  </script>
+</body>
+</html>

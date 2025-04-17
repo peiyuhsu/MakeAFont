@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>特殊符號模板生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            background-color: #f9f9f9;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        button, input {
+            margin: 10px 0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            border: 1px solid #e0e0e0;
+        }
+        .download-link {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9f7fd;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #0366d6;
+            transition: background-color 0.3s;
+        }
+        .download-link:hover {
+            background: #d1effc;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+        }
+        .preview {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fdfdfd;
+        }
+        .preview-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        .preview-cell {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: center;
+            background: white;
+            position: relative;
+        }
+        .preview-cell::before, .preview-cell::after {
+            content: '';
+            position: absolute;
+            background-color: #f0f0f0;
+            z-index: 0;
+        }
+        .preview-cell::before {
+            width: 100%;
+            height: 1px;
+            top: 50%;
+            left: 0;
+        }
+        .preview-cell::after {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+        }
+        .preview-character {
+            font-size: 24px;
+            z-index: 1;
+            position: relative;
+            color: #333;
+        }
+        .preview-name {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+            z-index: 1;
+            position: relative;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #777;
+            font-size: 0.9em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Iansui-Regular 字符網格生成器</h1>
+        
+        <div class="controls">
+            <h3>第一步：輸入或粘貼Unicode字符列表</h3>
+            <div>
+                <p>請輸入每行一個Unicode碼點 (格式: U+XXXX)</p>
+                <textarea id="manualInput" rows="10" cols="50" placeholder="U+0020&#10;U+0021&#10;U+0022&#10;..."></textarea>
+                <button id="loadExampleButton">載入範例資料</button>
+            </div>
+            
+            <h3>或者：上傳Unicode字符列表文件</h3>
+            <input type="file" id="fileInput">
+            <div id="fileStatus" class="status"></div>
+            
+            <h3>第二步：設定生成選項</h3>
+            <div>
+                <label for="charsPerPage">每頁字符數：</label>
+                <input type="number" id="charsPerPage" value="35" min="1" max="100">
+                
+                <label for="totalChunks">分割成幾個檔案：</label>
+                <input type="number" id="totalChunks" value="1" min="1" max="10">
+            </div>
+            
+            <h3>第三步：生成HTML檔案</h3>
+            <button id="generateButton" disabled>生成字符網格HTML</button>
+        </div>
+        
+        <div id="preview" class="preview" style="display: none;">
+            <h3>預覽</h3>
+            <div class="preview-title">字符網格預覽（僅顯示前10個字符）</div>
+            <div id="previewGrid" class="preview-grid"></div>
+        </div>
+        
+        <div id="downloadLinks"></div>
+        
+        <div class="footer">
+            <p>© 2025 Iansui-Regular 字符網格生成器 | 使用此工具可幫助您建立字體測試模板</p>
+        </div>
+    </div>
+    
+    <script>
+        // 基本配置
+        const config = {
+            charsPerPage: 35,    // 每頁顯示的字符數
+            totalChunks: 1,      // 需要分割成的塊數
+            characters: [],      // 這裡會放字符列表
+        };
+
+        // 解析Unicode列表
+        function parseUnicodeList(text) {
+            // 按行分割
+            const lines = text.split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line !== '');
+            
+            // 解析每行的Unicode碼點
+            const characters = lines.map(line => {
+                // 移除U+前綴並轉換為十六進制碼點
+                if (line.startsWith('U+')) {
+                    const hex = line.substring(2);
+                    try {
+                        const codePoint = parseInt(hex, 16);
+                        return {
+                            name: line,
+                            unicode: String.fromCodePoint(codePoint)
+                        };
+                    } catch (e) {
+                        console.error(`無法解析Unicode: ${line}`, e);
+                        return {
+                            name: line,
+                            unicode: '?'
+                        };
+                    }
+                }
+                return {
+                    name: line,
+                    unicode: line
+                };
+            });
+            
+            return characters;
+        }
+
+        // 將字符列表分成指定的塊數
+        function splitIntoChunks(characters, numChunks) {
+            const chunkSize = Math.ceil(characters.length / numChunks);
+            const chunks = [];
+            
+            for (let i = 0; i < characters.length; i += chunkSize) {
+                chunks.push(characters.slice(i, i + chunkSize));
+            }
+            
+            return chunks;
+        }
+
+        // 生成單個頁面的HTML
+        function generatePageHTML(characters, chunkIndex, pageIndex) {
+            const startIdx = pageIndex * config.charsPerPage;
+            const endIdx = Math.min(startIdx + config.charsPerPage, characters.length);
+            const pageChars = characters.slice(startIdx, endIdx);
+            
+            let html = `
+            <div class="page">
+                <div class="page-title">Iansui-Regular 字符網格模板 - 第${chunkIndex + 1}份 - 第${pageIndex + 1}頁</div>
+                <div class="grid">
+            `;
+            
+            for (const char of pageChars) {
+                html += `
+                    <div class="cell">
+                        <div class="character">${char.unicode}</div>
+                        <div class="character-name">${char.name}</div>
+                    </div>
+                `;
+            }
+            
+            // 如果這一頁不足35個字符，補充空白單元格
+            const emptyCellsNeeded = config.charsPerPage - pageChars.length;
+            for (let i = 0; i < emptyCellsNeeded; i++) {
+                html += `
+                    <div class="cell">
+                        <div class="character"></div>
+                        <div class="character-name"></div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                </div>
+            </div>
+            `;
+            
+            return html;
+        }
+
+        // 生成一個塊的所有頁面
+        function generateChunkHTML(characters, chunkIndex) {
+            const pagesNeeded = Math.ceil(characters.length / config.charsPerPage);
+            let html = '';
+            
+            for (let pageIndex = 0; pageIndex < pagesNeeded; pageIndex++) {
+                html += generatePageHTML(characters, chunkIndex, pageIndex);
+            }
+            
+            return html;
+        }
+
+        // 生成所有分塊的HTML文件
+        function generateAllChunksHTML(characters) {
+            const chunks = splitIntoChunks(characters, config.totalChunks);
+            const results = [];
+            
+            chunks.forEach((chunk, index) => {
+                const chunkHTML = generateChunkHTML(chunk, index);
+                results.push({
+                    chunkIndex: index,
+                    html: chunkHTML,
+                    charactersCount: chunk.length,
+                    pagesCount: Math.ceil(chunk.length / config.charsPerPage)
+                });
+            });
+            
+            return results;
+        }
+
+        // 更新預覽
+        function updatePreview(characters) {
+            if (characters.length === 0) return;
+            
+            const previewContainer = document.getElementById('preview');
+            const previewGrid = document.getElementById('previewGrid');
+            
+            previewContainer.style.display = 'block';
+            previewGrid.innerHTML = '';
+            
+            // 顯示前10個字符
+            const previewChars = characters.slice(0, 10);
+            
+            for (const char of previewChars) {
+                const cell = document.createElement('div');
+                cell.className = 'preview-cell';
+                
+                const charElement = document.createElement('div');
+                charElement.className = 'preview-character';
+                charElement.textContent = char.unicode;
+                
+                const nameElement = document.createElement('div');
+                nameElement.className = 'preview-name';
+                nameElement.textContent = char.name;
+                
+                cell.appendChild(charElement);
+                cell.appendChild(nameElement);
+                previewGrid.appendChild(cell);
+            }
+        }
+
+        // 範例資料
+        const exampleData = `U+0020
+U+0021
+U+0022
+U+0023
+U+0024
+U+0025
+U+0026
+U+0027
+U+0028
+U+0029
+U+002A`;
+
+        // 設置事件監聽器
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const manualInput = document.getElementById('manualInput');
+            const loadExampleButton = document.getElementById('loadExampleButton');
+            const fileStatus = document.getElementById('fileStatus');
+            const generateButton = document.getElementById('generateButton');
+            const downloadLinks = document.getElementById('downloadLinks');
+            const charsPerPageInput = document.getElementById('charsPerPage');
+            const totalChunksInput = document.getElementById('totalChunks');
+            
+            // 從文件載入
+            fileInput.addEventListener('change', function() {
+                const file = fileInput.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    manualInput.value = e.target.result;
+                    config.characters = parseUnicodeList(e.target.result);
+                    fileStatus.textContent = `已載入 ${config.characters.length} 個字符`;
+                    generateButton.disabled = false;
+                    updatePreview(config.characters);
+                };
+                reader.onerror = function() {
+                    fileStatus.textContent = '讀取文件時出錯';
+                };
+                reader.readAsText(file);
+            });
+            
+            // 從手動輸入載入
+            manualInput.addEventListener('input', function() {
+                if (manualInput.value.trim()) {
+                    config.characters = parseUnicodeList(manualInput.value);
+                    fileStatus.textContent = `已識別 ${config.characters.length} 個字符`;
+                    generateButton.disabled = false;
+                    updatePreview(config.characters);
+                } else {
+                    config.characters = [];
+                    fileStatus.textContent = '';
+                    generateButton.disabled = true;
+                    document.getElementById('preview').style.display = 'none';
+                }
+            });
+            
+            // 載入範例資料
+            loadExampleButton.addEventListener('click', function() {
+                manualInput.value = exampleData;
+                config.characters = parseUnicodeList(exampleData);
+                fileStatus.textContent = `已載入 ${config.characters.length} 個範例字符`;
+                generateButton.disabled = false;
+                updatePreview(config.characters);
+            });
+            
+            // 更新設定
+            charsPerPageInput.addEventListener('change', function() {
+                config.charsPerPage = parseInt(charsPerPageInput.value) || 35;
+            });
+            
+            totalChunksInput.addEventListener('change', function() {
+                config.totalChunks = parseInt(totalChunksInput.value) || 1;
+            });
+            
+            // 生成HTML
+            generateButton.addEventListener('click', function() {
+                if (config.characters.length === 0) {
+                    alert('請先載入字符列表');
+                    return;
+                }
+                
+                // 更新設定
+                config.charsPerPage = parseInt(charsPerPageInput.value) || 35;
+                config.totalChunks = parseInt(totalChunksInput.value) || 1;
+                
+                const results = generateAllChunksHTML(config.characters);
+                downloadLinks.innerHTML = '<h3>第四步：下載HTML文件並轉換為PDF</h3>';
+                
+                results.forEach((result, i) => {
+                    const blob = new Blob([`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Iansui-Regular 字符網格模板 - 第${i+1}份</title>
+    <style>
+        @page { size: A4; margin: 1cm; }
+        body { font-family: 'Iansui-Regular', sans-serif; margin: 0; padding: 0; }
+        .page { page-break-after: always; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .page-title { margin-bottom: 20px; font-size: 16px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(5, 120px); grid-template-rows: repeat(7, 120px); gap: 10px; }
+        .cell { border: 1px solid #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: white; }
+        .cell::before, .cell::after { content: ''; position: absolute; background-color: #e0e0e0; }
+        .cell::before { width: 100%; height: 1px; top: 50%; }
+        .cell::after { width: 1px; height: 100%; left: 50%; }
+        .character { font-size: 72px; z-index: 1; padding: 10px; color: #888888; opacity: 0.75;}
+        .character-name { font-size: 10px; text-align: center; margin-top: 5px; font-family: Arial, sans-serif; z-index: 1; }
+        @media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    ${result.html}
+</body>
+</html>`], {type: 'text/html'});
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Iansui-Regular_字符網格模板_第${i+1}份.html`;
+                    link.textContent = `下載第${i+1}份 (${result.charactersCount}字符，${result.pagesCount}頁)`;
+                    link.className = 'download-link';
+                    downloadLinks.appendChild(link);
+                });
+                
+                downloadLinks.innerHTML += `
+                <p>下載完成後：</p>
+                <ol>
+                    <li>在瀏覽器中打開每個HTML文件</li>
+                    <li>按Ctrl+P (Windows) 或 Command+P (Mac) 打開列印面板</li>
+                    <li>選擇「另存為PDF」</li>
+                    <li>儲存PDF文件</li>
+                </ol>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>

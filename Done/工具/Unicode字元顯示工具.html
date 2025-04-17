@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unicode字元顯示工具</title>
+  <style>
+    :root {
+      --primary-color: #4285f4;
+      --secondary-color: #34a853;
+      --accent-color: #ea4335;
+      --light-bg: #f8f9fa;
+      --dark-bg: #202124;
+      --border-color: #dadce0;
+    }
+    
+    body {
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px 8px 0 0;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    
+    .controls {
+      background-color: white;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 10px;
+      z-index: 100;
+      overflow: hidden;
+    }
+    
+    .controls-header {
+      padding: 15px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .controls-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+    }
+    
+    .controls-header .toggle-icon {
+      transition: transform 0.3s ease;
+      margin-right: 10px;
+    }
+    
+    .controls-header .toggle-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+    
+    .controls-content {
+      padding: 15px;
+      transition: max-height 0.3s ease;
+    }
+    
+    .controls-content.collapsed {
+      display: none;
+    }
+    
+    .control-section {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .control-section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    
+    .file-section {
+      padding: 10px;
+      background-color: var(--light-bg);
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    
+    .file-section h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+    
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: var(--primary-color);
+      color: white;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: #3367d6;
+    }
+    
+    button.secondary {
+      background-color: var(--secondary-color);
+    }
+    
+    button.secondary:hover {
+      background-color: #2e974a;
+    }
+    
+    .copy-btn {
+      background-color: #555;
+      font-size: 0.75rem;
+      padding: 3px 6px;
+      margin-top: 2px;
+    }
+    
+    .copy-btn:hover {
+      background-color: #333;
+    }
+    
+    .search-filter {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .search-filter input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    
+    .tab {
+      padding: 8px 15px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 4px 4px 0 0;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      background-color: #f0f0f0;
+    }
+    
+    .tab.active {
+      background-color: white;
+      border-color: var(--border-color);
+      margin-bottom: -1px;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .cell {
+      background-color: white;
+      border-radius: 6px;
+      padding: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      text-align: center;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .cell:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .cell .unicode-display {
+      font-size: 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      color: #333;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+    }
+    
+    .cell .filename {
+      font-size: 0.8rem;
+      color: #666;
+      word-break: break-all;
+      margin-bottom: 5px;
+      user-select: all;
+    }
+    
+    .cell .info {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 5px;
+    }
+    
+    .status {
+      padding: 10px;
+      background-color: var(--light-bg);
+      border-radius: 6px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin: 15px 0;
+    }
+    
+    .pagination button {
+      min-width: 35px;
+    }
+    
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    
+    .loading-spinner {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid var(--primary-color);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .font-sets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .font-set {
+      padding: 8px 12px;
+      background-color: var(--light-bg);
+      border-radius: 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+    }
+    
+    .font-set.active {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding: 15px;
+      background-color: var(--light-bg);
+      border-radius: 0 0 8px 8px;
+      color: #666;
+      font-size: 0.8rem;
+    }
+    
+    .quick-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+    }
+    
+    .quick-search input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    
+    .quick-search .status-info {
+      white-space: nowrap;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      }
+      
+      .quick-search {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .quick-search .status-info {
+        white-space: normal;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Unicode字元顯示工具</h1>
+      <span id="version">V1.2</span>
+    </div>
+    
+    <div class="controls">
+      <div class="controls-header" id="controlsToggle">
+        <h2>
+          <span class="toggle-icon">▼</span>
+          操作面板
+        </h2>
+        <div id="headerStatus">請選擇字元列表檔案</div>
+      </div>
+      <div class="controls-content" id="controlsContent">
+        <div class="control-section">
+          <div class="file-section">
+            <h3>字元列表檔案</h3>
+            <input type="file" id="charListFile" multiple />
+            <div id="listCount"></div>
+          </div>
+        </div>
+        
+        <div class="control-section">
+          <div class="font-sets" id="fontSets">
+            <!-- 字體集合將在這裡動態生成 -->
+          </div>
+          
+          <div class="tabs" id="tabs">
+            <div class="tab active" data-tab="all">全部字元</div>
+            <!-- 其他頁籤將在這裡動態生成 -->
+          </div>
+        </div>
+        
+        <div class="control-section">
+          <div class="search-filter">
+            <input type="text" id="searchInput" placeholder="搜尋字元、檔名或Unicode..." />
+            <button id="clearSearch">清除</button>
+          </div>
+          
+          <div class="button-group">
+            <button id="exportJsonBtn">匯出JSON</button>
+          </div>
+        </div>
+        
+        <div id="statusMessage" class="status">請選擇字元列表檔案</div>
+      </div>
+    </div>
+    
+    <div class="quick-search">
+      <input type="text" id="quickSearchInput" placeholder="快速搜尋..." />
+      <button id="quickClearSearch">清除</button>
+      <div class="status-info" id="quickStatus"></div>
+    </div>
+    
+    <div id="pagination" class="pagination"></div>
+    
+    <div class="tab-content active" id="all-content">
+      <div class="grid" id="allGrid"></div>
+    </div>
+    
+    <!-- 其他頁籤內容將在這裡動態生成 -->
+  </div>
+  
+  <div class="footer">
+    © 2025 Unicode字元顯示工具
+  </div>
+  
+  <div id="loading" class="loading" style="display: none;">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <script>
+    // 全局變量
+    let charSets = {};
+    let charData = [];
+    let currentFontSet = 'all';
+    let currentPage = 1;
+    let itemsPerPage = 100;
+    let filteredChars = [];
+    let searchTerm = '';
+    let fileListMap = new Map(); // 儲存檔案列表的映射
+    let controlsExpanded = true; // 控制面板預設展開
+
+    // 初始化頁面
+    document.addEventListener('DOMContentLoaded', function() {
+      // 設置控制面板折疊/展開功能
+      setupCollapsibleControls();
+      
+      // 事件監聽器設置
+      document.getElementById('charListFile').addEventListener('change', handleCharListFilesChange);
+      document.getElementById('searchInput').addEventListener('input', handleSearch);
+      document.getElementById('clearSearch').addEventListener('click', clearSearch);
+      document.getElementById('quickSearchInput').addEventListener('input', handleQuickSearch);
+      document.getElementById('quickClearSearch').addEventListener('click', clearQuickSearch);
+      document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
+      
+      // 頁籤切換事件
+      document.getElementById('tabs').addEventListener('click', function(e) {
+        if (e.target.classList.contains('tab')) {
+          switchTab(e.target.dataset.tab);
+        }
+      });
+      
+      // 設置初始狀態
+      updateStatus('請選擇字元列表檔案');
+    });
+
+    // 設置可收縮控制面板
+    function setupCollapsibleControls() {
+      const toggleBtn = document.getElementById('controlsToggle');
+      const contentDiv = document.getElementById('controlsContent');
+      const toggleIcon = document.querySelector('.toggle-icon');
+      
+      // 初始狀態：展開
+      toggleIcon.classList.remove('collapsed');
+      contentDiv.classList.remove('collapsed');
+      
+      toggleBtn.addEventListener('click', function() {
+        controlsExpanded = !controlsExpanded;
+        
+        if (controlsExpanded) {
+          // 展開
+          toggleIcon.classList.remove('collapsed');
+          contentDiv.classList.remove('collapsed');
+        } else {
+          // 收縮
+          toggleIcon.classList.add('collapsed');
+          contentDiv.classList.add('collapsed');
+        }
+      });
+    }
+
+    // 處理字元列表文件選擇
+    function handleCharListFilesChange(e) {
+      const files = Array.from(e.target.files);
+      
+      if (files.length === 0) {
+        updateStatus('⚠️ 未選擇字元列表檔案');
+        return;
+      }
+      
+      showLoading();
+      
+      // 清空之前的字符集
+      charSets = {};
+      fileListMap.clear();
+      charData = [];
+      
+      let loadedCount = 0;
+      
+      files.forEach(file => {
+        const reader = new FileReader();
+        const setName = file.name.replace(/\.[^/.]+$/, ''); // 移除副檔名
+        
+        reader.onload = function(event) {
+          const content = event.target.result;
+          const lines = content.split(/\r?\n/).filter(Boolean);
+          charSets[setName] = [];
+          
+          lines.forEach(line => {
+            let unicode = line.trim();
+            let char = '';
+            let filename = '';
+            
+            // 處理不同格式的Unicode編碼
+            if (unicode.startsWith('uni')) {
+              try {
+                const codePoint = parseInt(unicode.slice(3), 16);
+                char = String.fromCodePoint(codePoint);
+                filename = `${unicode}.png`;
+              } catch (e) {
+                console.error('無法解析Unicode:', unicode, e);
+              }
+            } else if (unicode.startsWith('U+')) {
+              try {
+                const codePoint = parseInt(unicode.slice(2), 16);
+                char = String.fromCodePoint(codePoint);
+                filename = `uni${unicode.slice(2)}.png`;
+              } catch (e) {
+                console.error('無法解析Unicode:', unicode, e);
+              }
+            } else if (unicode.startsWith('u')) {
+              // 處理形如u217DA的格式
+              try {
+                const codePoint = parseInt(unicode.slice(1), 16);
+                char = String.fromCodePoint(codePoint);
+                filename = `uni${unicode.slice(1)}.png`;
+              } catch (e) {
+                console.error('無法解析Unicode:', unicode, e);
+              }
+            } else if (/^[A-Za-z]+$/.test(unicode)) {
+              // 處理字母名稱格式，如Agrave
+              // 此處簡化處理，實際可能需要查詢映射表
+              filename = `${unicode}.png`;
+            }
+            
+            if (filename) {
+              const charInfo = {
+                char,
+                unicode,
+                filename,
+                setName
+              };
+              
+              charSets[setName].push(charInfo);
+              charData.push(charInfo);
+            }
+          });
+          
+          loadedCount++;
+          if (loadedCount === files.length) {
+            // 所有檔案都已載入
+            document.getElementById('listCount').textContent = `已載入 ${files.length} 個字元列表，共 ${charData.length} 個字元`;
+            
+            // 創建字體集標籤
+            createFontSetTabs();
+            
+            // 初始化顯示
+            filteredChars = [...charData];
+            renderPagination();
+            renderGrid();
+            
+            const statusMsg = `已載入 ${files.length} 個字元列表檔案，共 ${charData.length} 個字元`;
+            updateStatus(statusMsg);
+            updateHeaderStatus(statusMsg);
+            updateQuickStatus(`共 ${charData.length} 個字元`);
+            
+            // 如果控制面板是展開的，可以選擇自動收合
+            // if (controlsExpanded) {
+            //   document.getElementById('controlsToggle').click();
+            // }
+            
+            hideLoading();
+          }
+        };
+        
+        reader.onerror = function() {
+          console.error(`無法讀取檔案 ${file.name}`);
+          loadedCount++;
+          if (loadedCount === files.length) {
+            hideLoading();
+          }
+        };
+        
+        reader.readAsText(file, 'UTF-8');
+      });
+    }
+
+    // 創建字體集標籤
+    function createFontSetTabs() {
+      const fontSetsContainer = document.getElementById('fontSets');
+      const tabsContainer = document.getElementById('tabs');
+      
+      // 清空現有內容
+      fontSetsContainer.innerHTML = `<div class="font-set active" data-set="all">全部</div>`;
+      
+      // 保留第一個「全部字元」頁籤
+      const allTab = tabsContainer.querySelector('[data-tab="all"]');
+      tabsContainer.innerHTML = '';
+      tabsContainer.appendChild(allTab);
+      
+      // 清空除「all-content」外的所有內容
+      document.querySelectorAll('.tab-content:not(#all-content)').forEach(el => el.remove());
+      
+      // 為每個字體集創建標籤和頁籤
+      Object.keys(charSets).forEach((setName, index) => {
+        // 創建字體集選擇器
+        const setDiv = document.createElement('div');
+        setDiv.className = 'font-set';
+        setDiv.dataset.set = setName;
+        setDiv.textContent = setName;
+        setDiv.addEventListener('click', () => switchFontSet(setName));
+        fontSetsContainer.appendChild(setDiv);
+        
+        // 創建頁籤
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        tab.dataset.tab = setName;
+        tab.textContent = setName;
+        tabsContainer.appendChild(tab);
+        
+        // 創建頁籤內容
+        const content = document.createElement('div');
+        content.className = 'tab-content';
+        content.id = `${setName}-content`;
+        
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        grid.id = `${setName}Grid`;
+        
+        content.appendChild(grid);
+        document.querySelector('.container').insertBefore(content, document.getElementById('pagination').nextSibling);
+      });
+      
+      // 為字體集添加點擊事件
+      document.querySelectorAll('.font-set').forEach(btn => {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.font-set').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          
+          currentFontSet = this.dataset.set;
+          filterAndRenderChars();
+        });
+      });
+    }
+
+    // 切換頁籤
+    function switchTab(tabId) {
+      // 更新頁籤狀態
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+      });
+      
+      // 更新內容顯示
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `${tabId}-content`);
+      });
+      
+      // 更新當前字體集
+      currentFontSet = tabId;
+      filterAndRenderChars();
+    }
+
+    // 切換字體集
+    function switchFontSet(setName) {
+      document.querySelectorAll('.font-set').forEach(set => {
+        set.classList.toggle('active', set.dataset.set === setName);
+      });
+      
+      currentFontSet = setName;
+      filterAndRenderChars();
+      
+      // 同時切換到對應頁籤
+      switchTab(setName);
+    }
+
+    // 過濾並渲染字元
+    function filterAndRenderChars() {
+      showLoading();
+      
+      setTimeout(() => {
+        if (!charData || charData.length === 0) {
+          hideLoading();
+          return;
+        }
+        
+        // 根據字體集和搜尋條件過濾
+        if (currentFontSet === 'all') {
+          // 全部顯示，僅過濾搜尋詞
+          filteredChars = charData.filter(item => {
+            if (!searchTerm) return true;
+            return item.filename.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                  (item.char && item.char.includes(searchTerm)) ||
+                  item.unicode.toLowerCase().includes(searchTerm.toLowerCase());
+          });
+        } else {
+          // 過濾指定字體集
+          filteredChars = charSets[currentFontSet] || [];
+          
+          // 如果有搜尋詞，繼續過濾
+          if (searchTerm) {
+            filteredChars = filteredChars.filter(item => 
+              item.filename.toLowerCase().includes(searchTerm.toLowerCase()) || 
+              (item.char && item.char.includes(searchTerm)) ||
+              item.unicode.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+          }
+        }
+        
+        currentPage = 1;
+        renderPagination();
+        renderGrid();
+        
+        const statusMsg = `當前顯示: ${filteredChars.length} / ${charData.length} 個字元 (${currentFontSet})`;
+        updateStatus(statusMsg);
+        updateQuickStatus(`${filteredChars.length} / ${charData.length} 個字元`);
+        hideLoading();
+      }, 100);
+    }
+
+    // 處理搜尋
+    function handleSearch() {
+      searchTerm = document.getElementById('searchInput').value.trim();
+      // 同步更新快速搜尋框
+      document.getElementById('quickSearchInput').value = searchTerm;
+      filterAndRenderChars();
+    }
+
+    // 處理快速搜尋
+    function handleQuickSearch() {
+      searchTerm = document.getElementById('quickSearchInput').value.trim();
+      // 同步更新主搜尋框
+      document.getElementById('searchInput').value = searchTerm;
+      filterAndRenderChars();
+    }
+
+    // 清除搜尋
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('quickSearchInput').value = '';
+      searchTerm = '';
+      filterAndRenderChars();
+    }
+
+    // 清除快速搜尋
+    function clearQuickSearch() {
+      document.getElementById('quickSearchInput').value = '';
+      document.getElementById('searchInput').value = '';
+      searchTerm = '';
+      filterAndRenderChars();
+    }
+
+    // 匯出JSON
+    function exportJson() {
+      if (charData.length === 0) {
+        updateStatus('⚠️ 沒有可匯出的資料');
+        return;
+      }
+      
+      showLoading();
+      
+      setTimeout(() => {
+        // 建立並下載JSON文件
+        const blob = new Blob([JSON.stringify(filteredChars, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `unicode_chars_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        
+        updateStatus(`💾 已匯出 ${filteredChars.length} 個字元資料`);
+        hideLoading();
+      }, 100);
+    }
+    
+    // 渲染分頁控制
+    function renderPagination() {
+      if (!filteredChars || filteredChars.length === 0) return;
+      
+      const totalPages = Math.ceil(filteredChars.length / itemsPerPage);
+      const paginationElem = document.getElementById('pagination');
+      paginationElem.innerHTML = '';
+      
+      // 如果只有一頁，不顯示分頁
+      if (totalPages <= 1) return;
+      
+      // 上一頁按鈕
+      const prevBtn = document.createElement('button');
+      prevBtn.textContent = '上一頁';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderGrid();
+        }
+      });
+      paginationElem.appendChild(prevBtn);
+      
+      // 頁碼按鈕
+      const maxButtons = 7; // 最多顯示的頁碼數量
+      let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+      let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+      
+      if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.classList.toggle('active', i === currentPage);
+        pageBtn.addEventListener('click', () => {
+          currentPage = i;
+          renderGrid();
+        });
+        paginationElem.appendChild(pageBtn);
+      }
+      
+      // 下一頁按鈕
+      const nextBtn = document.createElement('button');
+      nextBtn.textContent = '下一頁';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderGrid();
+        }
+      });
+      paginationElem.appendChild(nextBtn);
+      
+      // 頁數資訊
+      const pageInfo = document.createElement('span');
+      pageInfo.textContent = ` ${currentPage}/${totalPages} 頁`;
+      pageInfo.style.margin = '0 10px';
+      paginationElem.appendChild(pageInfo);
+    }
+    
+    // 渲染字元網格
+    function renderGrid() {
+      if (!filteredChars || filteredChars.length === 0) return;
+      
+      // 根據當前頁碼計算要顯示的字元
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = Math.min(start + itemsPerPage, filteredChars.length);
+      const pageChars = filteredChars.slice(start, end);
+      
+      // 清空所有網格
+      document.querySelectorAll('.grid').forEach(grid => {
+        grid.innerHTML = '';
+      });
+      
+      // 獲取相應的網格元素
+      let gridElem;
+      if (currentFontSet === 'all') {
+        gridElem = document.getElementById('allGrid');
+      } else {
+        gridElem = document.getElementById(`${currentFontSet}Grid`);
+      }
+      
+      if (!gridElem) return;
+      
+      // 創建單元格
+      pageChars.forEach(charInfo => {
+        const cell = createCell(charInfo);
+        gridElem.appendChild(cell);
+      });
+      
+      // 更新分頁
+      renderPagination();
+      
+      // 更新狀態
+      const statusMsg = `顯示 ${start + 1} - ${end} 個字元 (共 ${filteredChars.length} 個)`;
+      updateStatus(statusMsg);
+      updateQuickStatus(`${start + 1}-${end}/${filteredChars.length}`);
+    }
+    
+    // 創建單元格
+    function createCell(charInfo) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      
+      // Unicode顯示區域
+      const unicodeDisplay = document.createElement('div');
+      unicodeDisplay.className = 'unicode-display';
+      
+      if (charInfo.char) {
+        unicodeDisplay.textContent = charInfo.char;
+      } else {
+        unicodeDisplay.textContent = '�';
+        unicodeDisplay.style.color = '#999';
+      }
+      
+      // Unicode編碼顯示
+      const unicodeCode = document.createElement('div');
+      unicodeCode.className = 'info';
+      unicodeCode.textContent = charInfo.unicode;
+      
+      // 檔名顯示區域
+      const filename = document.createElement('div');
+      filename.className = 'filename';
+      filename.textContent = charInfo.filename;
+      
+      // 複製按鈕
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = '複製檔名';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(charInfo.filename).then(() => {
+          copyBtn.textContent = '已複製!';
+          setTimeout(() => {
+            copyBtn.textContent = '複製檔名';
+          }, 1500);
+        });
+      });
+      
+      // 字集資訊
+      const setInfo = document.createElement('div');
+      setInfo.className = 'info';
+      setInfo.textContent = `字集: ${charInfo.setName}`;
+      
+      // 將所有元素添加到單元格
+      cell.appendChild(unicodeDisplay);
+      cell.appendChild(unicodeCode);
+      cell.appendChild(filename);
+      cell.appendChild(copyBtn);
+      cell.appendChild(setInfo);
+      
+      return cell;
+    }
+    
+    // 更新狀態訊息
+    function updateStatus(message) {
+      document.getElementById('statusMessage').textContent = message;
+    }
+    
+    // 更新頂部狀態訊息
+    function updateHeaderStatus(message) {
+      document.getElementById('headerStatus').textContent = message;
+    }
+    
+    // 更新快速搜尋區域的狀態訊息
+    function updateQuickStatus(message) {
+      document.getElementById('quickStatus').textContent = message;
+    }
+    
+    // 顯示載入中
+    function showLoading() {
+      document.getElementById('loading').style.display = 'flex';
+    }
+    
+    // 隱藏載入中
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

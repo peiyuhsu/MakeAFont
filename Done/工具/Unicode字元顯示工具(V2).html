@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unicode字元映射生成工具</title>
+  <style>
+    :root {
+      --primary-color: #4285f4;
+      --primary-dark: #3367d6;
+      --secondary-color: #34a853;
+      --accent-color: #ea4335;
+      --warning-color: #fbbc05;
+      --light-bg: #f8f9fa;
+      --border-color: #dadce0;
+      --text-color: #202124;
+      --text-secondary: #5f6368;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      color: var(--text-color);
+      background-color: var(--light-bg);
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+    
+    .subtitle {
+      font-size: 1rem;
+      opacity: 0.9;
+      margin-top: 8px;
+    }
+    
+    main {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    
+    @media (min-width: 768px) {
+      main {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    
+    .panel {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .panel-title {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+    }
+    
+    .panel-title svg {
+      margin-right: 8px;
+    }
+    
+    .file-input {
+      margin-bottom: 20px;
+    }
+    
+    .file-input label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    
+    .file-input input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+    }
+    
+    .options-group {
+      margin-bottom: 20px;
+    }
+    
+    .option-item {
+      margin-bottom: 12px;
+    }
+    
+    .option-item label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .option-item input[type="text"],
+    .option-item select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 8px;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 10px 16px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    
+    button svg {
+      margin-right: 6px;
+    }
+    
+    button:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    button.secondary {
+      background-color: var(--secondary-color);
+    }
+    
+    button.secondary:hover {
+      background-color: #2d9748;
+    }
+    
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .preview-section {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      background-color: #f5f5f5;
+    }
+    
+    .stats {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: var(--light-bg);
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    
+    .file-list {
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    
+    .file-item {
+      padding: 5px 10px;
+      margin-bottom: 5px;
+      background-color: var(--light-bg);
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .file-name {
+      font-weight: bold;
+    }
+    
+    .file-count {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+    }
+    
+    .results-view {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    
+    .result-table th,
+    .result-table td {
+      border: 1px solid var(--border-color);
+      padding: 8px;
+      text-align: left;
+    }
+    
+    .result-table th {
+      background-color: var(--light-bg);
+      position: sticky;
+      top: 0;
+    }
+    
+    .result-table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    
+    .char-display {
+      font-size: 1.5rem;
+      text-align: center;
+    }
+    
+    .alert {
+      padding: 10px 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+      background-color: #e8f4fd;
+      border-left: 4px solid var(--primary-color);
+    }
+    
+    .alert.warning {
+      background-color: #fff8e6;
+      border-left-color: var(--warning-color);
+    }
+    
+    .alert.error {
+      background-color: #fdeded;
+      border-left-color: var(--accent-color);
+    }
+    
+    .logs {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+      background-color: #202124;
+      color: #f1f3f4;
+      border-radius: 4px;
+      padding: 10px;
+    }
+    
+    .log-item {
+      margin-bottom: 5px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 5px;
+    }
+    
+    .log-time {
+      color: #888;
+      margin-right: 10px;
+    }
+    
+    .log-type {
+      display: inline-block;
+      padding: 2px 5px;
+      border-radius: 3px;
+      margin-right: 5px;
+      font-size: 0.75rem;
+    }
+    
+    .log-type.info {
+      background-color: var(--primary-color);
+    }
+    
+    .log-type.warn {
+      background-color: var(--warning-color);
+      color: #000;
+    }
+    
+    .log-type.error {
+      background-color: var(--accent-color);
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 20px;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Unicode字元映射生成工具</h1>
+      <div class="subtitle">自動解析Unicode列表，生成字元與檔名映射</div>
+    </header>
+    
+    <main>
+      <div class="panel">
+        <h2 class="panel-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+          輸入與設定
+        </h2>
+        
+        <div class="file-input">
+          <label for="unicodeFiles">選擇Unicode列表檔案 (可多選)</label>
+          <input type="file" id="unicodeFiles" multiple accept=".txt">
+        </div>
+        
+        <div class="file-list" id="fileList">
+          <!-- 檔案清單將在這裡顯示 -->
+        </div>
+        
+        <div class="options-group">
+          <h3>選項設定</h3>
+          
+          <div class="option-item">
+            <label for="filenameTemplate">檔名格式模板</label>
+            <input type="text" id="filenameTemplate" value="{unicode}.png" placeholder="例如: {unicode}.png">
+          </div>
+          
+          <div class="option-item">
+            <label for="outputFormat">輸出格式</label>
+            <select id="outputFormat">
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
+          
+          <div class="checkbox-group">
+            <input type="checkbox" id="includeInvalid">
+            <label for="includeInvalid">包含無法解析的字元</label>
+          </div>
+          
+          <div class="checkbox-group">
+            <input type="checkbox" id="mergeFiles" checked>
+            <label for="mergeFiles">合併所有檔案生成單一輸出</label>
+          </div>
+        </div>
+        
+        <div class="actions">
+          <button id="generateBtn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c-4.97 0-9-4.03-9-9m9 9a9 9 0 0 0 9-9m-9 0a9 9 0 0 0-9 9m0 0a9 9 0 0 1 9-9"></path></svg>
+            生成映射
+          </button>
+          <button id="downloadBtn" disabled class="secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            下載結果
+          </button>
+        </div>
+        
+        <div class="alert">
+          提示：上傳的檔案不會傳送至任何伺服器，所有處理都在您的瀏覽器中進行。
+        </div>
+      </div>
+      
+      <div class="panel">
+        <h2 class="panel-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          處理結果
+        </h2>
+        
+        <div class="preview-section" id="previewSection">
+          <!-- 預覽內容將在這裡顯示 -->
+          <p>尚未生成結果，請上傳檔案並點擊「生成映射」按鈕。</p>
+        </div>
+        
+        <div class="stats" id="statsSection" style="display: none;">
+          <h3>處理統計</h3>
+          <div class="stat-item">
+            <span>總字元數:</span>
+            <span id="totalCount">0</span>
+          </div>
+          <div class="stat-item">
+            <span>成功解析:</span>
+            <span id="validCount">0</span>
+          </div>
+          <div class="stat-item">
+            <span>無法解析:</span>
+            <span id="invalidCount">0</span>
+          </div>
+        </div>
+        
+        <div class="results-view" id="resultsView" style="display: none;">
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>原始編碼</th>
+                <th>字元</th>
+                <th>檔名</th>
+                <th>字集</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody">
+              <!-- 結果將在這裡顯示 -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="logs" id="logs" style="display: none;">
+          <!-- 日誌將在這裡顯示 -->
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      &copy; 2025 Unicode字元映射生成工具 | 版本: 1.0.0
+    </footer>
+  </div>
+
+  <script>
+    // 全局變量
+    let processedFiles = []; // 儲存已處理的檔案資訊
+    let allResults = []; // 儲存所有處理結果
+    let fileResults = {}; // 按檔案名儲存處理結果
+    
+    // DOM 元素
+    const unicodeFilesInput = document.getElementById('unicodeFiles');
+    const fileListElem = document.getElementById('fileList');
+    const filenameTemplateInput = document.getElementById('filenameTemplate');
+    const outputFormatSelect = document.getElementById('outputFormat');
+    const includeInvalidCheckbox = document.getElementById('includeInvalid');
+    const mergeFilesCheckbox = document.getElementById('mergeFiles');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const previewSection = document.getElementById('previewSection');
+    const statsSection = document.getElementById('statsSection');
+    const totalCountElem = document.getElementById('totalCount');
+    const validCountElem = document.getElementById('validCount');
+    const invalidCountElem = document.getElementById('invalidCount');
+    const resultsView = document.getElementById('resultsView');
+    const resultsBody = document.getElementById('resultsBody');
+    const logsElem = document.getElementById('logs');
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      // 檔案選擇監聽器
+      unicodeFilesInput.addEventListener('change', handleFileSelect);
+      
+      // 按鈕事件監聽
+      generateBtn.addEventListener('click', generateMapping);
+      downloadBtn.addEventListener('click', downloadResults);
+    });
+    
+    // 處理檔案選擇
+    function handleFileSelect(event) {
+      const files = Array.from(event.target.files).filter(file => file.name.endsWith('.txt'));
+      
+      if (files.length === 0) {
+        logMessage('error', '沒有選擇有效的.txt檔案');
+        return;
+      }
+      
+      // 清空檔案列表
+      fileListElem.innerHTML = '';
+      processedFiles = [];
+      
+      // 添加檔案到列表
+      files.forEach(file => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.innerHTML = `
+          <span class="file-name">${file.name}</span>
+          <span class="file-count" data-file="${file.name}">待處理</span>
+        `;
+        fileListElem.appendChild(fileItem);
+        
+        processedFiles.push({
+          file,
+          name: file.name,
+          processed: false,
+          count: 0
+        });
+      });
+      
+      // 啟用生成按鈕
+      generateBtn.disabled = false;
+      
+      logMessage('info', `已選擇 ${files.length} 個檔案，準備處理`);
+    }
+    
+    // 解析Unicode編碼
+    function parseUnicode(unicode, setName) {
+      let char = '';
+      let codePoint = null;
+      let filename = '';
+      let format = '';
+      
+      unicode = unicode.trim();
+      
+      // 處理uni格式 (如: uni4E00)
+      if (unicode.startsWith('uni')) {
+        format = 'uni';
+        try {
+          codePoint = parseInt(unicode.slice(3), 16);
+          char = String.fromCodePoint(codePoint);
+          filename = filenameTemplateInput.value.replace('{unicode}', unicode);
+        } catch (e) {
+          logMessage('warn', `無法解析uni格式: ${unicode} - ${e.message}`);
+        }
+      } 
+      // 處理U+格式 (如: U+4E00)
+      else if (unicode.startsWith('U+')) {
+        format = 'U+';
+        try {
+          codePoint = parseInt(unicode.slice(2), 16);
+          char = String.fromCodePoint(codePoint);
+          const uniFormat = `uni${unicode.slice(2)}`;
+          filename = filenameTemplateInput.value.replace('{unicode}', uniFormat);
+        } catch (e) {
+          logMessage('warn', `無法解析U+格式: ${unicode} - ${e.message}`);
+        }
+      }
+      // 處理u格式 (如: u217DA)
+      else if (unicode.startsWith('u') && /^u[0-9A-Fa-f]+$/.test(unicode)) {
+        format = 'u';
+        try {
+          codePoint = parseInt(unicode.slice(1), 16);
+          char = String.fromCodePoint(codePoint);
+          const uniFormat = `uni${unicode.slice(1)}`;
+          filename = filenameTemplateInput.value.replace('{unicode}', uniFormat);
+        } catch (e) {
+          logMessage('warn', `無法解析u格式: ${unicode} - ${e.message}`);
+        }
+      }
+      // 處理命名格式 (如: Agrave)
+      else if (/^[A-Za-z][A-Za-z0-9_]*$/.test(unicode)) {
+        format = 'named';
+        // 這裡只是簡單地使用命名，實際上可能需要查表轉換
+        filename = filenameTemplateInput.value.replace('{unicode}', unicode);
+      }
+      // 其他未識別格式
+      else {
+        format = 'unknown';
+        logMessage('warn', `未知格式: ${unicode}`);
+      }
+      
+      return {
+        original: unicode,
+        char,
+        codePoint,
+        format,
+        filename,
+        setName,
+        isValid: !!filename
+      };
+    }
+    
+    // 處理單個檔案
+    async function processUnicodeFile(fileInfo) {
+      logMessage('info', `處理檔案: ${fileInfo.name}`);
+      
+      try {
+        const text = await readFileAsText(fileInfo.file);
+        const lines = text.split(/\r?\n/).filter(Boolean);
+        const setName = fileInfo.name.replace(/\.[^/.]+$/, ''); // 移除副檔名
+        
+        logMessage('info', `檔案 ${setName} 包含 ${lines.length} 行`);
+        
+        const results = lines.map(line => parseUnicode(line, setName));
+        
+        const validCount = results.filter(r => r.isValid).length;
+        logMessage('info', `成功解析: ${validCount}/${lines.length}`);
+        
+        // 更新檔案計數
+        fileInfo.count = lines.length;
+        fileInfo.processed = true;
+        updateFileCount(fileInfo.name, lines.length);
+        
+        return includeInvalidCheckbox.checked ? results : results.filter(r => r.isValid);
+      } catch (error) {
+        logMessage('error', `處理檔案 ${fileInfo.name} 失敗: ${error.message}`);
+        return [];
+      }
+    }
+    
+    // 更新檔案計數顯示
+    function updateFileCount(fileName, count) {
+      const countElem = document.querySelector(`.file-count[data-file="${fileName}"]`);
+      if (countElem) {
+        countElem.textContent = count;
+      }
+    }
+    
+    // 讀取檔案為文字
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = e => reject(e);
+        reader.readAsText(file);
+      });
+    }
+    
+    // 生成映射
+    async function generateMapping() {
+      if (processedFiles.length === 0) {
+        logMessage('error', '沒有檔案可處理');
+        return;
+      }
+      
+      // 清空結果
+      allResults = [];
+      fileResults = {};
+      
+      // 顯示日誌區域
+      logsElem.style.display = 'block';
+      logsElem.innerHTML = '';
+      
+      // 禁用按鈕
+      generateBtn.disabled = true;
+      downloadBtn.disabled = true;
+      
+      // 清空結果區域
+      previewSection.innerHTML = '<p>處理中，請稍候...</p>';
+      resultsBody.innerHTML = '';
+      
+      // 處理所有檔案
+      for (const fileInfo of processedFiles) {
+        const results = await processUnicodeFile(fileInfo);
+        const basename = fileInfo.name.replace(/\.[^/.]+$/, '');
+        
+        fileResults[basename] = results;
+        allResults = allResults.concat(results);
+      }
+      
+      // 顯示統計資訊
+      statsSection.style.display = 'block';
+      totalCountElem.textContent = allResults.length;
+      validCountElem.textContent = allResults.filter(r => r.isValid).length;
+      invalidCountElem.textContent = allResults.length - allResults.filter(r => r.isValid).length;
+      
+      // 顯示結果預覽
+      displayResults();
+      
+      // 啟用下載按鈕
+      downloadBtn.disabled = false;
+      generateBtn.disabled = false;
+      
+      logMessage('info', `處理完成，共處理 ${allResults.length} 個字元`);
+    }
+    
+    // 顯示處理結果
+    function displayResults() {
+      // 顯示表格
+      resultsView.style.display = 'block';
+      resultsBody.innerHTML = '';
+      
+      // 取前100個結果顯示
+      const displayResults = allResults.slice(0, 100);
+      
+      displayResults.forEach(result => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${result.original}</td>
+          <td class="char-display">${result.char || '—'}</td>
+          <td>${result.filename}</td>
+          <td>${result.setName}</td>
+        `;
+        resultsBody.appendChild(row);
+      });
+      
+      // 顯示JSON預覽
+      const previewData = allResults.slice(0, 5);
+      previewSection.innerHTML = `<pre>${JSON.stringify(previewData, null, 2)}</pre>`;
+      
+      if (allResults.length > 100) {
+        const note = document.createElement('div');
+        note.className = 'alert';
+        note.innerHTML = `注意：僅顯示前100個結果，共 ${allResults.length} 個字元。完整結果請下載檔案查看。`;
+        previewSection.appendChild(note);
+      }
+    }
+    
+    // 下載結果
+    function downloadResults() {
+      if (allResults.length === 0) {
+        logMessage('error', '沒有可下載的結果');
+        return;
+      }
+      
+      const format = outputFormatSelect.value;
+      const merged = mergeFilesCheckbox.checked;
+      
+      if (merged) {
+        // 合併輸出
+        if (format === 'json') {
+          downloadJSON('unicode_mapping.json', allResults);
+        } else {
+          downloadCSV('unicode_mapping.csv', allResults);
+        }
+      } else {
+        // 分別輸出
+        Object.keys(fileResults).forEach(setName => {
+          const results = fileResults[setName];
+          if (format === 'json') {
+            downloadJSON(`${setName}.json`, results);
+          } else {
+            downloadCSV(`${setName}.csv`, results);
+          }
+        });
+      }
+    }
+    
+    // 下載JSON檔案
+    function downloadJSON(filename, data) {
+      const content = JSON.stringify(data, null, 2);
+      downloadFile(filename, content, 'application/json');
+    }
+    
+    // 下載CSV檔案
+    function downloadCSV(filename, data) {
+      if (data.length === 0) return;
+      
+      // 獲取欄位名稱
+      const headers = ['original', 'char', 'codePoint', 'format', 'filename', 'setName'];
+      const headerRow = headers.join(',');
+      
+      // 轉換每行資料
+      const rows = data.map(item => {
+        return headers.map(header => {
+          let value = item[header] || '';
+          
+          // 如果值包含逗號或引號，需要用引號括起來
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            value = `"${value.replace(/"/g, '""')}"`;
+          }
+          
+          return value;
+        }).join(',');
+      });
+      
+      const content = [headerRow, ...rows].join('\n');
+      downloadFile(filename, content, 'text/csv');
+    }
+    
+    // 下載檔案通用功能
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      logMessage('info', `已下載檔案: ${filename}`);
+    }
+    
+    // 記錄訊息
+    function logMessage(level, message) {
+      if (logsElem.style.display === 'none') {
+        logsElem.style.display = 'block';
+      }
+      
+      const timestamp = new Date().toLocaleTimeString();
+      const logItem = document.createElement('div');
+      logItem.className = 'log-item';
+      
+      let typeLabel = '';
+      switch(level) {
+        case 'error':
+          typeLabel = '<span class="log-type error">錯誤</span>';
+          break;
+        case 'warn':
+          typeLabel = '<span class="log-type warn">警告</span>';
+          break;
+        case 'info':
+        default:
+          typeLabel = '<span class="log-type info">資訊</span>';
+          break;
+      }
+      
+      logItem.innerHTML = `<span class="log-time">${timestamp}</span>${typeLabel}${message}`;
+      logsElem.appendChild(logItem);
+      logsElem.scrollTop = logsElem.scrollHeight;
+      
+      console.log(`[${level.toUpperCase()}] ${message}`);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>字圖校對工具 V8（增強版）</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 20px;
+    }
+    .cell {
+      text-align: center;
+      border: 1px solid #eee;
+      padding: 10px;
+      border-radius: 5px;
+      position: relative;
+    }
+    .cell:hover {
+      border-color: #aaa;
+      background-color: #f9f9f9;
+    }
+    .cell img {
+      width: 100%;
+      border: 1px solid #ddd;
+      background-color: #fff;
+    }
+    .cell .input-group {
+      margin-top: 5px;
+      display: flex;
+      flex-direction: column;
+    }
+    .cell input {
+      width: 90%;
+      text-align: center;
+      padding: 4px;
+      margin: 2px auto;
+    }
+    .cell .unicode-info {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 3px;
+    }
+    .controls {
+      margin-bottom: 20px;
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    .button-group {
+      margin: 10px 0;
+    }
+    button {
+      padding: 5px 10px;
+      margin-right: 5px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .search-box {
+      margin: 10px 0;
+      width: 300px;
+      padding: 5px;
+    }
+    .pagination {
+      margin: 10px 0;
+      text-align: center;
+    }
+    .pagination button {
+      background-color: #ddd;
+      color: black;
+    }
+    .pagination button.active {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .invalid-input {
+      border-color: #ff6b6b !important;
+      background-color: #ffeeee !important;
+    }
+    .auto-guess-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      font-size: 0.7em;
+      padding: 2px 5px;
+      background-color: #f0f0f0;
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .auto-guess-btn:hover {
+      background-color: #e0e0e0;
+    }
+    .zoom-controls {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <div>
+      <input type="file" id="imgFolder" webkitdirectory directory />
+      <span id="fileCount"></span>
+    </div>
+    <div class="button-group">
+      <input type="file" id="charListFile" />
+      <button onclick="fillFromList()">填入全部字元</button>
+      <button onclick="autoGuessByFilename()">根據檔名自動填入</button>
+      <button onclick="exportJson()">匯出 JSON</button>
+      <button onclick="saveProgress()">暫存進度</button>
+      <button onclick="loadProgress()">載入進度</button>
+    </div>
+    <div>
+      <input type="text" id="searchBox" class="search-box" placeholder="搜尋檔名或字元..." oninput="filterGrid()" />
+      <div class="zoom-controls">
+        縮放: <input type="range" id="zoomSlider" min="50" max="200" value="100" oninput="adjustZoom(this.value)" />
+        <span id="zoomValue">100%</span>
+      </div>
+    </div>
+    <div class="pagination" id="pagination"></div>
+    <div class="status" id="statusMessage"></div>
+  </div>
+
+  <div class="grid" id="previewGrid"></div>
+
+  <script>
+    let images = [];
+    let allCells = [];
+    const ITEMS_PER_PAGE = 100;
+    let currentPage = 1;
+    let filteredImages = [];
+    
+    document.getElementById("imgFolder").addEventListener("change", function(e) {
+      images = Array.from(e.target.files).filter(file => file.name.toLowerCase().endsWith(".png"));
+      images.sort((a, b) => {
+        // 嘗試從檔名提取數字進行排序
+        const numA = parseInt(a.name.replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, "")) || 0;
+        return numA - numB || a.name.localeCompare(b.name);
+      });
+      
+      document.getElementById("fileCount").textContent = `（已選擇 ${images.length} 個PNG檔）`;
+      filteredImages = [...images];
+      renderPagination();
+      renderPage(1);
+    });
+
+    function renderPagination() {
+      const totalPages = Math.ceil(filteredImages.length / ITEMS_PER_PAGE);
+      const pagination = document.getElementById("pagination");
+      pagination.innerHTML = "";
+      
+      if (totalPages <= 1) return;
+      
+      // 上一頁按鈕
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "上一頁";
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => {
+        if (currentPage > 1) renderPage(currentPage - 1);
+      };
+      pagination.appendChild(prevBtn);
+      
+      // 頁碼按鈕
+      const maxButtons = 7;
+      let startPage = Math.max(1, currentPage - Math.floor(maxButtons/2));
+      let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+      
+      if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement("button");
+        pageBtn.textContent = i;
+        pageBtn.className = i === currentPage ? "active" : "";
+        pageBtn.onclick = () => renderPage(i);
+        pagination.appendChild(pageBtn);
+      }
+      
+      // 下一頁按鈕
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "下一頁";
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => {
+        if (currentPage < totalPages) renderPage(currentPage + 1);
+      };
+      pagination.appendChild(nextBtn);
+      
+      // 顯示頁數資訊
+      const pageInfo = document.createElement("span");
+      pageInfo.textContent = ` ${currentPage}/${totalPages} 頁`;
+      pageInfo.style.marginLeft = "10px";
+      pagination.appendChild(pageInfo);
+    }
+
+    function renderPage(pageNum) {
+      currentPage = pageNum;
+      const grid = document.getElementById("previewGrid");
+      grid.innerHTML = "";
+      allCells = [];
+      
+      const start = (pageNum - 1) * ITEMS_PER_PAGE;
+      const end = Math.min(start + ITEMS_PER_PAGE, filteredImages.length);
+      
+      for (let i = start; i < end; i++) {
+        const file = filteredImages[i];
+        const cell = createCell(file);
+        grid.appendChild(cell);
+        allCells.push(cell);
+      }
+      
+      renderPagination();
+      document.getElementById("statusMessage").textContent = `📦 圖片總數：${images.length}，當前顯示：${start + 1} - ${end}`;
+    }
+
+    function createCell(file) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.filename = file.name;
+      
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(file);
+      img.title = file.name;
+      
+      const guessBtn = document.createElement("button");
+      guessBtn.className = "auto-guess-btn";
+      guessBtn.textContent = "猜";
+      guessBtn.title = "根據檔名猜測字元";
+      guessBtn.onclick = (e) => {
+        e.stopPropagation();
+        autoGuessSingle(cell, file.name);
+      };
+      
+      const inputGroup = document.createElement("div");
+      inputGroup.className = "input-group";
+      
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 1;
+      input.placeholder = "輸入字元";
+      input.dataset.index = file.name.replace(/\.(png|jpg|jpeg|gif)$/i, "");
+      input.dataset.filename = file.name;
+      input.addEventListener("input", function() {
+        validateAndUpdateInfo(this);
+      });
+      
+      const unicodeInfo = document.createElement("div");
+      unicodeInfo.className = "unicode-info";
+      
+      inputGroup.appendChild(input);
+      inputGroup.appendChild(unicodeInfo);
+      
+      cell.appendChild(img);
+      cell.appendChild(guessBtn);
+      cell.appendChild(inputGroup);
+      
+      return cell;
+    }
+
+    function validateAndUpdateInfo(input) {
+      const unicodeInfo = input.parentElement.querySelector(".unicode-info");
+      const char = input.value.trim();
+      
+      if (!char) {
+        unicodeInfo.textContent = "";
+        input.classList.remove("invalid-input");
+        return;
+      }
+      
+      if (!isValidChar(char)) {
+        unicodeInfo.textContent = "⚠️ 非中日韓文字";
+        unicodeInfo.style.color = "#ff6b6b";
+        input.classList.add("invalid-input");
+      } else {
+        const codePoint = char.codePointAt(0);
+        unicodeInfo.textContent = `U+${codePoint.toString(16).toUpperCase()}`;
+        unicodeInfo.style.color = "#666";
+        input.classList.remove("invalid-input");
+      }
+    }
+
+    function isValidChar(ch) {
+      if (typeof ch !== "string" || ch.length === 0) return false;
+      
+      const code = ch.codePointAt(0);
+      // 中日韓統一表意文字基本區 (CJK Unified Ideographs)
+      if (code >= 0x4E00 && code <= 0x9FFF) return true;
+      // 中日韓統一表意文字擴充區 A (CJK Unified Ideographs Extension A)
+      if (code >= 0x3400 && code <= 0x4DBF) return true;
+      // 中日韓統一表意文字擴充區 B-F
+      if (code >= 0x20000 && code <= 0x2FA1F) return true;
+      // 其他常用中日韓區塊
+      if (code >= 0x2E80 && code <= 0x2EFF) return true; // CJK 部首補充
+      if (code >= 0x2F00 && code <= 0x2FDF) return true; // 康熙部首
+      if (code >= 0x3000 && code <= 0x303F) return true; // CJK 符號和標點
+      if (code >= 0x3100 && code <= 0x312F) return true; // 注音符號
+      if (code >= 0x31A0 && code <= 0x31BF) return true; // 注音符號擴充
+      if (code >= 0x31C0 && code <= 0x31EF) return true; // CJK 筆畫
+      
+      return false;
+    }
+
+    function fillFromList() {
+      const fileInput = document.getElementById("charListFile");
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("請選擇字元列表檔案！");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split(/\r?\n/).filter(Boolean);
+        const chars = lines.map(line => {
+          line = line.trim();
+          
+          // 處理多種格式
+          if (line.startsWith("uni") && line.length >= 7) {
+            try {
+              return String.fromCodePoint(parseInt(line.slice(3), 16));
+            } catch {
+              return "";
+            }
+          } else if (line.startsWith("U+") && line.length >= 3) {
+            try {
+              return String.fromCodePoint(parseInt(line.slice(2), 16));
+            } catch {
+              return "";
+            }
+          } else if (line.length === 1) {
+            // 直接是單個字元
+            return line;
+          }
+          return "";
+        });
+
+        if (chars.filter(Boolean).length === 0) {
+          alert("⚠️ 無法解析字元列表，請確認格式正確！");
+          return;
+        }
+        
+        if (chars.length !== images.length) {
+          alert(`⚠️ 字元數 (${chars.length}) 與圖片數 (${images.length}) 不一致！\n繼續將按順序填入可用字元。`);
+        }
+
+        const inputs = document.querySelectorAll("input[data-index]");
+        let filledCount = 0;
+        
+        inputs.forEach((input, i) => {
+          if (i < chars.length) {
+            const ch = chars[i];
+            if (ch) {
+              input.value = ch;
+              validateAndUpdateInfo(input);
+              filledCount++;
+            }
+          }
+        });
+
+        document.getElementById("statusMessage").textContent = `✅ 已填入 ${filledCount} 個字元`;
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    function autoGuessByFilename() {
+      let guessedCount = 0;
+      const inputs = document.querySelectorAll("input[data-index]");
+      
+      inputs.forEach(input => {
+        const filename = input.dataset.filename;
+        if (autoGuessSingle(input.closest(".cell"), filename)) {
+          guessedCount++;
+        }
+      });
+      
+      document.getElementById("statusMessage").textContent = `🔄 已自動猜測 ${guessedCount} 個字元`;
+    }
+
+    function autoGuessSingle(cell, filename) {
+      const input = cell.querySelector("input");
+      if (input.value) return false; // 已有值就不覆蓋
+      
+      let char = "";
+      
+      // 處理「uniXXXX.png」格式
+      const uniMatch = filename.match(/uni([0-9A-Fa-f]{4,6})\.png$/i);
+      if (uniMatch) {
+        try {
+          char = String.fromCodePoint(parseInt(uniMatch[1], 16));
+        } catch {}
+      }
+      
+      // 處理「U+XXXX.png」格式
+      const uPlusMatch = filename.match(/U\+([0-9A-Fa-f]{4,6})\.png$/i);
+      if (uPlusMatch) {
+        try {
+          char = String.fromCodePoint(parseInt(uPlusMatch[1], 16));
+        } catch {}
+      }
+      
+      // 處理「字元.png」格式，假設檔名就是單個字元
+      if (!char && filename.length >= 2 && filename.endsWith(".png")) {
+        const possibleChar = filename.slice(0, -4);
+        if (possibleChar.length === 1 && isValidChar(possibleChar)) {
+          char = possibleChar;
+        }
+      }
+      
+      if (char && isValidChar(char)) {
+        input.value = char;
+        validateAndUpdateInfo(input);
+        return true;
+      }
+      
+      return false;
+    }
+
+    function exportJson() {
+      const inputs = document.querySelectorAll("input[data-index]");
+      const data = [];
+      const seen = new Set();
+      const duplicates = [];
+      const missing = [];
+
+      inputs.forEach(input => {
+        const char = input.value.trim();
+        const index = input.dataset.index;
+        const filename = input.dataset.filename;
+        
+        if (char) {
+          if (seen.has(char)) {
+            duplicates.push(`${char} (${filename})`);
+          } else {
+            seen.add(char);
+          }
+          
+          // 組合更多資訊
+          const codePoint = char.codePointAt(0).toString(16).toUpperCase();
+          data.push({
+            index,
+            filename,
+            char,
+            unicode: `U+${codePoint}`,
+            block: getUnicodeBlock(char.codePointAt(0))
+          });
+        } else {
+          missing.push(filename);
+        }
+      });
+
+      // 檢查重複和遺漏
+      let warningMsg = "";
+      if (duplicates.length > 0) {
+        warningMsg += `⚠️ ${duplicates.length} 個重複字元：\n${duplicates.slice(0, 10).join("\n")}${duplicates.length > 10 ? "\n..." : ""}`;
+      }
+      
+      if (missing.length > 0) {
+        if (warningMsg) warningMsg += "\n\n";
+        warningMsg += `⚠️ ${missing.length} 個未填字元：\n${missing.slice(0, 10).join("\n")}${missing.length > 10 ? "\n..." : ""}`;
+      }
+      
+      if (warningMsg) {
+        const proceed = confirm(warningMsg + "\n\n是否繼續匯出？");
+        if (!proceed) return;
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `字圖對應_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      
+      document.getElementById("statusMessage").textContent = `💾 已匯出 ${data.length} 個字元對應（共 ${images.length} 個圖片）`;
+    }
+
+    function getUnicodeBlock(codePoint) {
+      if (codePoint >= 0x4E00 && codePoint <= 0x9FFF) return "CJK 統一表意文字基本區";
+      if (codePoint >= 0x3400 && codePoint <= 0x4DBF) return "CJK 統一表意文字擴充區 A";
+      if (codePoint >= 0x20000 && codePoint <= 0x2A6DF) return "CJK 統一表意文字擴充區 B";
+      if (codePoint >= 0x2A700 && codePoint <= 0x2B73F) return "CJK 統一表意文字擴充區 C";
+      if (codePoint >= 0x2B740 && codePoint <= 0x2B81F) return "CJK 統一表意文字擴充區 D";
+      if (codePoint >= 0x2B820 && codePoint <= 0x2CEAF) return "CJK 統一表意文字擴充區 E";
+      if (codePoint >= 0x2CEB0 && codePoint <= 0x2EBEF) return "CJK 統一表意文字擴充區 F";
+      if (codePoint >= 0x30000 && codePoint <= 0x3134F) return "CJK 統一表意文字擴充區 G";
+      if (codePoint >= 0x31350 && codePoint <= 0x323AF) return "CJK 統一表意文字擴充區 H";
+      // 其他常用區塊
+      if (codePoint >= 0x2E80 && codePoint <= 0x2EFF) return "CJK 部首補充";
+      if (codePoint >= 0x2F00 && codePoint <= 0x2FDF) return "康熙部首";
+      if (codePoint >= 0x3000 && codePoint <= 0x303F) return "CJK 符號和標點";
+      return "其他區塊";
+    }
+
+    function filterGrid() {
+      const searchTerm = document.getElementById("searchBox").value.toLowerCase();
+      
+      if (!searchTerm) {
+        filteredImages = [...images];
+      } else {
+        filteredImages = images.filter(file => {
+          return file.name.toLowerCase().includes(searchTerm);
+        });
+      }
+      
+      renderPagination();
+      renderPage(1);
+    }
+
+    function adjustZoom(zoomLevel) {
+      document.documentElement.style.setProperty('--image-scale', `${zoomLevel}%`);
+      document.getElementById("zoomValue").textContent = `${zoomLevel}%`;
+      
+      const imageStyle = document.createElement('style');
+      imageStyle.textContent = `.cell img { max-width: ${zoomLevel}%; }`;
+      
+      // 移除舊的樣式標籤（如果有）
+      const oldStyle = document.getElementById('dynamic-image-style');
+      if (oldStyle) oldStyle.remove();
+      
+      // 添加新的樣式標籤
+      imageStyle.id = 'dynamic-image-style';
+      document.head.appendChild(imageStyle);
+    }
+
+    function saveProgress() {
+      const inputs = document.querySelectorAll("input[data-index]");
+      const data = {};
+      
+      inputs.forEach(input => {
+        if (input.value) {
+          data[input.dataset.filename] = input.value;
+        }
+      });
+      
+      if (Object.keys(data).length === 0) {
+        alert("⚠️ 沒有資料可儲存！");
+        return;
+      }
+      
+      localStorage.setItem('fontEditorProgress', JSON.stringify(data));
+      const timestamp = new Date().toLocaleString();
+      document.getElementById("statusMessage").textContent = `💾 進度已暫存於瀏覽器（${Object.keys(data).length} 個字元，${timestamp}）`;
+    }
+
+    function loadProgress() {
+      const savedData = localStorage.getItem('fontEditorProgress');
+      if (!savedData) {
+        alert("⚠️ 找不到已儲存的進度！");
+        return;
+      }
+      
+      try {
+        const data = JSON.parse(savedData);
+        const inputs = document.querySelectorAll("input[data-index]");
+        let loadedCount = 0;
+        
+        inputs.forEach(input => {
+          const filename = input.dataset.filename;
+          if (data[filename]) {
+            input.value = data[filename];
+            validateAndUpdateInfo(input);
+            loadedCount++;
+          }
+        });
+        
+        document.getElementById("statusMessage").textContent = `✅ 已載入 ${loadedCount} 個字元資料`;
+      } catch (e) {
+        alert("⚠️ 載入進度時發生錯誤！");
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+</html>

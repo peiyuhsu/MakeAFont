@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>字集模板生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        button, input {
+            margin: 10px 0;
+            padding: 8px 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .download-link {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9f7fd;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #0366d6;
+        }
+        .download-link:hover {
+            background: #d1effc;
+        }
+        h3 {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>字集模板生成器</h1>
+    
+    <div class="controls">
+        <h3>第一步：選擇字符列表文件</h3>
+        <input type="file" id="fileInput">
+        <div id="fileStatus"></div>
+        
+        <h3>第二步：生成分塊HTML</h3>
+        <button id="generateButton" disabled>生成7個分塊HTML</button>
+    </div>
+    
+    <div id="downloadLinks"></div>
+    
+    <script>
+        // 基本配置
+        const config = {
+            charsPerPage: 35,       // 每頁顯示的字符數
+            totalChunks: 1,         // 需要分割成的塊數
+            baseCharacters: [],     // 這裡會放字符列表
+        };
+
+        // 解析文字文件的函數
+        function parseCharacterList(text) {
+            return text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '');
+        }
+
+        // 將字符列表分成指定的塊數
+        function splitIntoChunks(characters, numChunks) {
+            const chunkSize = Math.ceil(characters.length / numChunks);
+            const chunks = [];
+            
+            for (let i = 0; i < characters.length; i += chunkSize) {
+                chunks.push(characters.slice(i, i + chunkSize));
+            }
+            
+            return chunks;
+        }
+
+        // 字符名稱到Unicode的映射函數
+        function getUnicodeFromName(name) {
+            // 清理名稱
+            name = name.trim().replace(/\r$/, '');
+            
+            // 處理 'uni' + 十六進制格式
+            if (name.startsWith('uni') && name.length >= 7) {
+                const hex = name.substring(3);
+                try {
+                    const codePoint = parseInt(hex, 16);
+                    return String.fromCodePoint(codePoint);
+                } catch (e) {
+                    console.error(`無法解析Unicode: ${name}`);
+                    return '?';
+                }
+            } 
+            // 處理 'u' + 十六進制格式
+            else if (name.startsWith('u') && name.length >= 5) {
+                const hex = name.substring(1);
+                try {
+                    const codePoint = parseInt(hex, 16);
+                    return String.fromCodePoint(codePoint);
+                } catch (e) {
+                    console.error(`無法解析Unicode: ${name}`);
+                    return '?';
+                }
+            } 
+            // 處理特殊字符名稱
+            else {
+                // 特殊字符映射表
+                const specialChars = {
+                    'space': '\u0020',
+                    'exclam': '\u0021',
+                    'quotedbl': '\u0022',
+                    'numbersign': '\u0023',
+                    'dollar': '\u0024',
+                    'percent': '\u0025',
+                    'ampersand': '\u0026',
+                    'quotesingle': '\u0027',
+                    'parenleft': '\u0028',
+                    'parenright': '\u0029',
+                    'asterisk': '\u002A',
+                    'plus': '\u002B',
+                    'comma': '\u002C',
+                    'hyphen': '\u002D',
+                    'period': '\u002E',
+                    'slash': '\u002F',
+                    // 數字 0-9
+                    'zero': '\u0030', 'one': '\u0031', 'two': '\u0032', 'three': '\u0033',
+                    'four': '\u0034', 'five': '\u0035', 'six': '\u0036', 'seven': '\u0037',
+                    'eight': '\u0038', 'nine': '\u0039',
+                    'colon': '\u003A',
+                    'semicolon': '\u003B',
+                    'less': '\u003C',
+                    'equal': '\u003D',
+                    'greater': '\u003E',
+                    'question': '\u003F',
+                    'at': '\u0040',
+                    // 英文字母 A-Z
+                    'A': '\u0041', 'B': '\u0042', 'C': '\u0043', 'D': '\u0044', 'E': '\u0045',
+                    'F': '\u0046', 'G': '\u0047', 'H': '\u0048', 'I': '\u0049', 'J': '\u004A',
+                    'K': '\u004B', 'L': '\u004C', 'M': '\u004D', 'N': '\u004E', 'O': '\u004F',
+                    'P': '\u0050', 'Q': '\u0051', 'R': '\u0052', 'S': '\u0053', 'T': '\u0054',
+                    'U': '\u0055', 'V': '\u0056', 'W': '\u0057', 'X': '\u0058', 'Y': '\u0059', 'Z': '\u005A',
+                    // 其他特殊字符
+                    'bracketleft': '\u005B',
+                    'backslash': '\u005C',
+                    'bracketright': '\u005D',
+                    'asciicircum': '\u005E',
+                    'underscore': '\u005F',
+                    'grave': '\u0060',
+                    // 英文字母 a-z
+                    'a': '\u0061', 'b': '\u0062', 'c': '\u0063', 'd': '\u0064', 'e': '\u0065',
+                    'f': '\u0066', 'g': '\u0067', 'h': '\u0068', 'i': '\u0069', 'j': '\u006A',
+                    'k': '\u006B', 'l': '\u006C', 'm': '\u006D', 'n': '\u006E', 'o': '\u006F',
+                    'p': '\u0070', 'q': '\u0071', 'r': '\u0072', 's': '\u0073', 't': '\u0074',
+                    'u': '\u0075', 'v': '\u0076', 'w': '\u0077', 'x': '\u0078', 'y': '\u0079', 'z': '\u007A',
+                    'braceleft': '\u007B',
+                    'bar': '\u007C',
+                    'braceright': '\u007D',
+                    'asciitilde': '\u007E',
+                };
+                
+                return specialChars[name] || name;
+            }
+        }
+
+        // 生成單個頁面的HTML
+        function generatePageHTML(characters, chunkIndex, pageIndex) {
+            const startIdx = pageIndex * config.charsPerPage;
+            const endIdx = Math.min(startIdx + config.charsPerPage, characters.length);
+            const pageChars = characters.slice(startIdx, endIdx);
+            
+            let html = `
+            <div class="page">
+                <div class="page-title">Iansui-Regular 字符網格模板 - 第${chunkIndex + 1}份 - 第${pageIndex + 1}頁</div>
+                <div class="grid">
+            `;
+            
+            for (const charName of pageChars) {
+                let unicode = '';
+                try {
+                    unicode = getUnicodeFromName(charName);
+                } catch (e) {
+                    console.error(`處理字符時出錯: ${charName}`, e);
+                    unicode = '?';
+                }
+                
+                html += `
+                    <div class="cell">
+                        <div class="character">${unicode}</div>
+                        <div class="character-name">${charName}</div>
+                    </div>
+                `;
+            }
+            
+            // 如果這一頁不足35個字符，補充空白單元格
+            const emptyCellsNeeded = config.charsPerPage - pageChars.length;
+            for (let i = 0; i < emptyCellsNeeded; i++) {
+                html += `
+                    <div class="cell">
+                        <div class="character"></div>
+                        <div class="character-name"></div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                </div>
+            </div>
+            `;
+            
+            return html;
+        }
+
+        // 生成一個塊的所有頁面
+        function generateChunkHTML(characters, chunkIndex) {
+            const pagesNeeded = Math.ceil(characters.length / config.charsPerPage);
+            let html = '';
+            
+            for (let pageIndex = 0; pageIndex < pagesNeeded; pageIndex++) {
+                html += generatePageHTML(characters, chunkIndex, pageIndex);
+            }
+            
+            return html;
+        }
+
+        // 生成所有分塊的HTML文件
+        function generateAllChunksHTML(characters) {
+            const chunks = splitIntoChunks(characters, config.totalChunks);
+            const results = [];
+            
+            chunks.forEach((chunk, index) => {
+                const chunkHTML = generateChunkHTML(chunk, index);
+                results.push({
+                    chunkIndex: index + 1,
+                    html: chunkHTML,
+                    charactersCount: chunk.length,
+                    pagesCount: Math.ceil(chunk.length / config.charsPerPage)
+                });
+            });
+            
+            return results;
+        }
+
+        // 設置事件監聽器
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const fileStatus = document.getElementById('fileStatus');
+            const generateButton = document.getElementById('generateButton');
+            const downloadLinks = document.getElementById('downloadLinks');
+            
+            fileInput.addEventListener('change', function() {
+                const file = fileInput.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    config.baseCharacters = parseCharacterList(e.target.result);
+                    fileStatus.textContent = `已載入 ${config.baseCharacters.length} 個字符`;
+                    generateButton.disabled = false;
+                };
+                reader.onerror = function() {
+                    fileStatus.textContent = '讀取文件時出錯';
+                };
+                reader.readAsText(file);
+            });
+            
+            generateButton.addEventListener('click', function() {
+                if (config.baseCharacters.length === 0) {
+                    alert('請先載入字符列表');
+                    return;
+                }
+                
+                const results = generateAllChunksHTML(config.baseCharacters);
+                downloadLinks.innerHTML = '<h3>第三步：下載HTML文件並轉換為PDF</h3>';
+                
+                results.forEach((result, i) => {
+                    const blob = new Blob([`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>字體字符網格模板 - 第${i+1}份</title>
+    <style>
+        @page { size: A4; margin: 1cm; }
+        body { font-family: 'Iansui-Regular', sans-serif; margin: 0; padding: 0; }
+        .page { page-break-after: always; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .page-title { margin-bottom: 20px; font-size: 16px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(5, 120px); grid-template-rows: repeat(7, 120px); gap: 10px; }
+        .cell { border: 1px solid #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: white; }
+        .cell::before, .cell::after { content: ''; position: absolute; background-color: #e0e0e0; }
+        .cell::before { width: 100%; height: 1px; top: 50%; }
+        .cell::after { width: 1px; height: 100%; left: 50%; }
+        .character { font-size: 72px; z-index: 1; padding: 10px; color: #888888; opacity: 0.75; }
+        .character-name { font-size: 10px; text-align: center; margin-top: 5px; font-family: Arial, sans-serif; z-index: 1; }
+        @media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    ${result.html}
+</body>
+</html>`], {type: 'text/html'});
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `字符網格模板_第${i+1}份.html`;
+                    link.textContent = `下載第${i+1}份 (${result.charactersCount}字符，${result.pagesCount}頁)`;
+                    link.className = 'download-link';
+                    downloadLinks.appendChild(link);
+                });
+                
+                downloadLinks.innerHTML += `
+                <p>下載完成後：</p>
+                <ol>
+                    <li>在瀏覽器中打開每個HTML文件</li>
+                    <li>按Ctrl+P (Windows) 或 Command+P (Mac) 打開列印面板</li>
+                    <li>選擇「另存為PDF」</li>
+                    <li>儲存PDF文件</li>
+                </ol>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>
